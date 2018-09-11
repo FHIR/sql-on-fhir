@@ -46,27 +46,27 @@ This is consistent with the expectations of most SQL users and with FHIRPath, al
 complexity to working with extensions to primitive elements, which is discussed in a later
 section of this document.
 
-Primitive types can be generally mapped directly to SQL, as seen in the table below.
-It is worth noting that date and time variants are stored as ISO 8601 values
-in ```VARCHAR```s, since the native date and time types on ANSI SQL do not account for
-the variable precision allowed in date/time-related types in FHIR.
+Primitive types can be generally mapped directly to SQL, as seen in the table below. A couple notes:
+
+* Date and time variants are stored as ISO 8601 values in ```VARCHAR```s, since the native date and time types on ANSI SQL do not account for the variable precision allowed in date/time-related types in FHIR.
+* Unless explicitly constrained, string types should be stored in Unicode. This is reflected by the use of ```NVARCHAR``` (or equivalent for the database used) seen below.
 
 | FHIR Type    | ANSI SQL Type | Comment
 | ------------ | ------------- | -------
 | boolean      | BOOLEAN       |
 | integer      | INTEGER       |
-| string       | VARCHAR       |
+| string       | NVARCHAR      |
 | decimal      | DECIMAL       | Use sufficient precision to avoid any precision loss in given data.
-| uri          | VARCHAR       |
+| uri          | NVARCHAR      |
 | base64Binary | VARCHAR       |
 | instant      | TIMESTAMP     |
 | date         | VARCHAR       | Uses ISO 8601
 | dateTime     | VARCHAR       | Uses ISO 8601
 | time         | VARCHAR       | Uses ISO 8601
-| code         | VARCHAR       |
+| code         | NVARCHAR      |
 | oid          | VARCHAR       |
-| id           | VARCHAR       |
-| markdown     | VARCHAR       |
+| id           | NVARCHAR      |
+| markdown     | NVARCHAR      |
 | unsigned int | INTEGER       |
 | positive int | INTEGER       |
 
