@@ -1,5 +1,5 @@
-# Native SQL Representation of FHIR Resources
-The SQL representation of resources encodes the full structure of FHIR into first-class schemas in SQL-based databases. This allows highly optimized analytic tools and databases to quickly analyze hundreds of millions of rows data. For example, here is a query over FHIR data that computes the average HDL levels for the full system:
+# Simplified SQL Projection of FHIR Resources
+An SQL-based projection of FHIR resources would open up large, portable datasets to a number of analytic tools. For example, here is a query over FHIR data that computes the average HDL levels for the full system:
 
 ```sql
 SELECT subject.reference,
@@ -8,7 +8,7 @@ FROM observation o,
      UNNEST(o.code.coding) c
 WHERE c.system = 'http://loinc.org' AND
       c.code = '2085-9' AND
-      o.effectivedatetime > '2017'
+      o.effective.datetime > '2017'
 GROUP BY subject.reference
 ```
 
@@ -18,6 +18,15 @@ Example queries using this pattern can be found in the [examples](examples/) dir
 
 ## Logical Representation for SQL Users
 This proposal focuses on a logical representation of FHIR as seen from an SQL user. This may either be a direct reflection of a physical data store, or a dynamic view over a different physical representation, depending on the design of the underlying system. This allows a logical view to best fit the intuitions of a user querying the data while preserving potential physical optimization underneath.
+
+## Simplified, Reproducible Projections
+A great experience for SQL users is a central goal of this effort. Therefore, we expose a simplified view of data using native SQL constructs, accepting that this view may not reflect all information in the original FHIR data. This has a few implications, including:
+
+* Numeric types are represented as numbers in the database, so the original precision may not be visible (e.g., the original data may have been 1.23 or 1.230).
+* The base "id" fields on structures are removed, as they are rarely used and would add a lot of noise to the SQL schema.
+* Contained structures are not supported.
+
+Each of these is discussed in more detail below. In all cases, users who need this complete information should have access the original FHIR data used to populate the SQL projection. This keeps the SQL usage simple for common cases, but all information is still available in cases where it is needed.
 
 ## JSON and XML Databases vs. Native Encoding
 Several databases directly support JSON and XML types, and the corresponding FHIR
@@ -34,6 +43,14 @@ analyzing data with SQL-enabled tools.
 
 ## FHIRPath Relationship
 [FHIRPath](http://hl7.org/fhirpath/) offers path-based extraction of data from FHIR data and is used extensively within the FHIR specification itself. It is an excellent fit for its role, but is not sufficient for users looking for join, aggregation, or statistical operations over FHIR datasets. This proposal attempts to fill that need, but will follow conventions established by FHIRPath wherever applicable.
+
+## Field Names
+Field names should use [camelCase](https://en.wikipedia.org/wiki/Camel_case), matching the content seen on [fhir.hl7.org](http://fhir.hl7.org). SQL users should be able to use that web site as reference documentation when crafting their queries.
+
+The use of camelCase also applies to nested fields of option types, so users would see things like ```value.codeableConcept``` and ```value.quantity``` as the field names under those types. (Of course, this only affects display, as field names are not case sensitive.)
+
+### ID Fields Omitted
+FHIR elements, including primitives, can have an "id" field that can be referenced elsewhere within the structure. These provide little value to most SQL analysts, so such fields will be omitted from the SQL-based view of the data.
 
 ## Data Type Mapping
 This section describes how FHIR data types are mapped to ANSI SQL counterparts.
@@ -70,6 +87,11 @@ Primitive types can be generally mapped directly to SQL, as seen in the table be
 | unsigned int | INTEGER       |
 | positive int | INTEGER       |
 
+### References
+FHIR references are relative URLs by definition, which are difficult to use in join semantics in most SQL engines. For instance, an Observation may have a reference to "Person/ABC", but the identifier on the Person instance is simply "ABC", so equality-based join operations don't work. This is important enough to justify generating an additional field the Reference type that can be used in an equijoin. This field should be named ```<resourceType>Id```.
+
+To illustrate this, the Observation.subject structure (which is a reference), would contain fields of patientId, groupId, deviceId, and locationId as defined in the resource.
+
 ### Complex and Multi-Value Types
 Complex FHIR types should be expressed as SQL ```STRUCT```s containing their elements,
 which may be primitive values or other complex types.
@@ -87,7 +109,7 @@ _Boolean_, _Range_, and so on.
 
 This approach differs from the JSON representation of FHIR (which creates fields like valueQuantity and ValueCodeableConcept), but is taken for consistency with FHIRPath.
 
-## Extensions as First-Class Fields
+## Extensions Duplicated as First-Class Fields
 The _extensions_ field on FHIR resources is an effective approach to interoperability, but it is not
 easily queried or analyzed directly. Since the SQL models discussed here are generated from the
 resource's StructureDefinition for a given profile, we can incorporate them as first-class fields
@@ -104,6 +126,11 @@ WHERE race.value.coding = '...'
 
 The "race" field name seen above is the slice name pulled from the extension.
 
+### Original Extensions Preserved
+Duplication of sliced extensions into a first-class field offers a good experience for analytic users. However, some operations may look for extensions that were unknown when the schema was generated, or as a way to enumerate all extensions in the dataset. Therefore the SQL projection will preserve the extension structure as it exists to simplify such queries.
+
+This leads to duplicate data in the projection, so tools creating the view are responsible for keeping them consistent. However, should inconsistency arise, the content of the original extensions structure is considered the source of truth.
+
 ## Primitive Extensions
 Extensions on primitive types are rarely used, and their value in the type of analysis done
 by SQL users is even more marginal. Therefore SQL views of FHIR data may handle them in one of two ways:
@@ -118,6 +145,9 @@ However, some FHIR types conflict with this. For instance, a Reference type incl
 resources -- which may contain other resources.
 
 Although database schemas may contain nested structures many layers deep, these recursive models must be terminated at some point. Implementations may do so by excluding the recursive structure at some depth that is sufficient for the data they offer to SQL users. For instance, if the underlying dataset contains no recursive Reference structures more than N layers deep, the recursion is terminated at N. This can be done by scanning the FHIR resources themselves or by some other knowledge intrinsic to the underlying system.
+
+## Contained Resources
+Contained Resources are useful for interoperability needs, but do not map cleanly to an SQL structure. Therefore they will be dropped from these SQL views. However, the system loading data that includes nested resources SHOULD extract them from the original, and use an appropriate Reference in the resource so previously contained items can be joined to.
 
 ## ValueSet Support
 FHIR ValueSets can be stored and queried like any other resource. However, ValueSets merit special additional support since they are central to many queries. Therefore, systems following this specification should offer a ```valueset_codes``` table that can be easily joined, allowing other queries to select data by value set.
