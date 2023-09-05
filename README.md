@@ -1,7 +1,7 @@
-**LIKELY TO BE DEPRECATED**
+# LIKELY TO BE DEPRECATED
 This work is being superseded by https://build.fhir.org/ig/FHIR/sql-on-fhir-v2/. Content in this repository is likely to be deprecated.
 
-# SQL on FHIR
+## SQL on FHIR
 Documentation and examples for ANSI SQL queries of FHIR data.
 
 The specification can be found in the [SQL on FHIR](sql-on-fhir.md) document,
