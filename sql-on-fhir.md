@@ -1,3 +1,6 @@
+# Likely to be deprecated
+**This work is being superseded by https://build.fhir.org/ig/FHIR/sql-on-fhir-v2/. Content in this repository is likely to be deprecated.**
+
 # Simplified SQL Projection of FHIR Resources
 An SQL-based projection of FHIR resources would open up large, portable datasets to a number of analytic tools. For example, here is a query over FHIR data that computes the average HDL levels for the full system:
 
